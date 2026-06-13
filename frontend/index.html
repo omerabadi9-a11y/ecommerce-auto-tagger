@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Commerce Auto-Tagger</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+        header { background: #1a1a2e; color: white; padding: 20px; text-align: center; }
+        header h1 { font-size: 2em; }
+        header p { color: #aaa; margin-top: 5px; }
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+        .upload-box { background: white; border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        .upload-box h2 { margin-bottom: 15px; color: #1a1a2e; }
+        input[type="file"] { display: none; }
+        .upload-label { display: inline-block; background: #1a1a2e; color: white; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-size: 1em; transition: background 0.3s; }
+        .upload-label:hover { background: #16213e; }
+        #fileName { margin-top: 10px; color: #666; font-size: 0.9em; }
+        #uploadBtn { display: none; margin-top: 15px; background: #e94560; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-size: 1em; }
+        #uploadBtn:hover { background: #c73652; }
+        #status { margin-top: 15px; font-weight: bold; color: #e94560; min-height: 24px; }
+        .products-section h2 { color: #1a1a2e; margin-bottom: 20px; font-size: 1.5em; }
+        .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+        .product-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); transition: transform 0.2s; }
+        .product-card:hover { transform: translateY(-3px); }
+        .product-card h3 { font-size: 0.95em; color: #666; margin-bottom: 10px; word-break: break-all; }
+        .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .tag { background: #e8f4fd; color: #1a6fa8; padding: 4px 10px; border-radius: 20px; font-size: 0.8em; }
+        .creative-text { background: #f9f9f9; border-right: 3px solid #e94560; padding: 10px; border-radius: 6px; font-size: 0.9em; line-height: 1.6; color: #444; }
+        .upload-time { font-size: 0.75em; color: #aaa; margin-top: 10px; text-align: left; }
+        .loading { text-align: center; padding: 40px; color: #666; }
+        #refreshBtn { background: #1a1a2e; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🏷️ E-Commerce Auto-Tagger</h1>
+    <p>העלה תמונת מוצר וקבל תגיות ותיאור שיווקי אוטומטי</p>
+</header>
+
+<div class="container">
+    <div class="upload-box">
+        <h2>העלאת מוצר חדש</h2>
+        <label class="upload-label" for="fileInput">📁 בחר תמונה</label>
+        <input type="file" id="fileInput" accept="image/*">
+        <div id="fileName">לא נבחרה תמונה</div>
+        <br>
+        <button id="uploadBtn" onclick="uploadImage()">🚀 העלה ונתח</button>
+        <div id="status"></div>
+    </div>
+
+    <div class="products-section">
+        <h2>📦 קטלוג המוצרים</h2>
+        <button id="refreshBtn" onclick="loadProducts()">🔄 רענן קטלוג</button>
+        <div id="productsGrid" class="products-grid">
+            <div class="loading">טוען מוצרים...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'https://urhnwa221c.execute-api.us-east-1.amazonaws.com/prod';
+
+    document.getElementById('fileInput').addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            document.getElementById('fileName').textContent = '📄 ' + file.name;
+            document.getElementById('uploadBtn').style.display = 'inline-block';
+        }
+    });
+
+    async function uploadImage() {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) return;
+
+        const status = document.getElementById('status');
+        status.textContent = '⏳ מקבל קישור העלאה...';
+
+        try {
+            const res = await fetch(`${API_URL}/upload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileName: file.name })
+            });
+            const { uploadURL } = await res.json();
+
+            status.textContent = '⏳ מעלה תמונה...';
+            await fetch(uploadURL, {
+                method: 'PUT',
+                body: file,
+                headers: { 'Content-Type': 'image/jpeg' }
+            });
+
+            status.textContent = '⏳ מנתח תמונה עם AI... (עד 30 שניות)';
+
+            setTimeout(() => {
+                status.textContent = '✅ הושלם! מרענן קטלוג...';
+                loadProducts();
+                setTimeout(() => { status.textContent = ''; }, 3000);
+            }, 15000);
+
+        } catch (err) {
+            status.textContent = '❌ שגיאה: ' + err.message;
+        }
+    }
+
+    async function loadProducts() {
+        const grid = document.getElementById('productsGrid');
+        grid.innerHTML = '<div class="loading">טוען...</div>';
+
+        try {
+            const res = await fetch(`${API_URL}/products`);
+            const products = await res.json();
+
+            if (products.length === 0) {
+                grid.innerHTML = '<div class="loading">אין מוצרים עדיין</div>';
+                return;
+            }
+
+            grid.innerHTML = products.map(p => `
+                <div class="product-card">
+                    <h3>📷 ${p.ImageID}</h3>
+                    <div class="tags">
+                        ${(p.DetectedObjects || []).map(t => `<span class="tag">${t}</span>`).join('')}
+                    </div>
+                    <div class="creative-text">
+                        ${p.CreativeText || 'ממתין לתיאור שיווקי...'}
+                    </div>
+                    <div class="upload-time">${p.UploadTime || ''}</div>
+                </div>
+            `).join('');
+
+        } catch (err) {
+            grid.innerHTML = '<div class="loading">❌ שגיאה בטעינת מוצרים</div>';
+        }
+    }
+
+    loadProducts();
+</script>
+</body>
+</html>
